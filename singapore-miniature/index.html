@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: full-bleed 3D canvas; ivory-glass controls float at the corners; the landmark card docks right on desktop and becomes a bottom sheet on phones. */
+/* Layout: full-bleed 3D canvas; Liquid Glass controls float at the corners; the landmark card docks right on desktop and becomes a bottom sheet on phones. */
 :root {
   --bg: #E7DECC;
   --paper: rgba(251, 247, 239, 0.88);
@@ -32,12 +32,32 @@
   --top: calc(env(safe-area-inset-top, 0px) + 14px);
   --bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
   --dock-h: 56px;
+  --glass-tint: rgba(255, 255, 255, 0.24);
+  --glass-tint-strong: rgba(252, 251, 248, 0.52);
+  --glass-rim: rgba(255, 255, 255, 0.92);
+  --glass-rim-low: rgba(255, 255, 255, 0.32);
+  --glass-edge: rgba(255, 255, 255, 0.38);
+  --glass-sheen: rgba(255, 255, 255, 0.34);
+  --glass-sheen-low: rgba(255, 255, 255, 0.12);
+  --glass-glow: rgba(255, 255, 255, 0.16);
+  --glass-shadow: 0 12px 34px rgba(22, 30, 36, 0.20), 0 2px 6px rgba(22, 30, 36, 0.10);
+  --label-glass: rgba(255, 255, 255, 0.46);
+  --pill: rgba(255, 255, 255, 0.7);
+  --pill-ink: #12201F;
+  --hover: rgba(255, 255, 255, 0.32);
+  --inset: rgba(255, 255, 255, 0.34);
+  --solid: #F7F5F0;
+  --text-glow: 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0A1316; --paper: rgba(15, 26, 30, 0.86); --paper-solid: #111D21; --ink: #ECF1EA; --muted: #A2B3AD;
     --line: rgba(236, 241, 234, 0.15); --accent: #4CC9BC; --accent-ink: #062320; --sun: #F28C5F; --focus: #7FE0D5;
     --label-bg: rgba(15, 26, 30, 0.92); --label-ink: #ECF1EA; --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    --glass-tint: rgba(14, 22, 28, 0.30); --glass-tint-strong: rgba(14, 22, 28, 0.58); --glass-rim: rgba(255, 255, 255, 0.5); --glass-rim-low: rgba(255, 255, 255, 0.1);
+    --glass-edge: rgba(255, 255, 255, 0.16); --glass-sheen: rgba(255, 255, 255, 0.14); --glass-sheen-low: rgba(255, 255, 255, 0.04); --glass-glow: rgba(255, 255, 255, 0.06);
+    --glass-shadow: 0 12px 34px rgba(0, 0, 0, 0.38), 0 2px 6px rgba(0, 0, 0, 0.22); --label-glass: rgba(14, 22, 28, 0.46); --pill: rgba(255, 255, 255, 0.2); --pill-ink: #F4F7F5;
+    --hover: rgba(255, 255, 255, 0.12); --inset: rgba(255, 255, 255, 0.08); --solid: #141E24; --text-glow: 0 1px 2px rgba(0, 0, 0, 0.35);
     color-scheme: dark;
   }
 }
@@ -45,7 +65,19 @@
   --bg: #0A1316; --paper: rgba(15, 26, 30, 0.86); --paper-solid: #111D21; --ink: #ECF1EA; --muted: #A2B3AD;
   --line: rgba(236, 241, 234, 0.15); --accent: #4CC9BC; --accent-ink: #062320; --sun: #F28C5F; --focus: #7FE0D5;
   --label-bg: rgba(15, 26, 30, 0.92); --label-ink: #ECF1EA; --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  --glass-tint: rgba(14, 22, 28, 0.30); --glass-tint-strong: rgba(14, 22, 28, 0.58); --glass-rim: rgba(255, 255, 255, 0.5); --glass-rim-low: rgba(255, 255, 255, 0.1);
+    --glass-edge: rgba(255, 255, 255, 0.16); --glass-sheen: rgba(255, 255, 255, 0.14); --glass-sheen-low: rgba(255, 255, 255, 0.04); --glass-glow: rgba(255, 255, 255, 0.06);
+    --glass-shadow: 0 12px 34px rgba(0, 0, 0, 0.38), 0 2px 6px rgba(0, 0, 0, 0.22); --label-glass: rgba(14, 22, 28, 0.46); --pill: rgba(255, 255, 255, 0.2); --pill-ink: #F4F7F5;
+    --hover: rgba(255, 255, 255, 0.12); --inset: rgba(255, 255, 255, 0.08); --solid: #141E24; --text-glow: 0 1px 2px rgba(0, 0, 0, 0.35);
   color-scheme: dark;
+}
+/* After dark the glass darkens and the text turns light, whatever the page theme */
+#app[data-scene="night"] {
+  --ink: #EEF3F0; --muted: #B4C3BE; --line: rgba(236, 241, 234, 0.16); --sun: #F6A178; --focus: #7FE0D5;
+  --glass-tint: rgba(14, 22, 28, 0.30); --glass-tint-strong: rgba(14, 22, 28, 0.58); --glass-rim: rgba(255, 255, 255, 0.5); --glass-rim-low: rgba(255, 255, 255, 0.1);
+    --glass-edge: rgba(255, 255, 255, 0.16); --glass-sheen: rgba(255, 255, 255, 0.14); --glass-sheen-low: rgba(255, 255, 255, 0.04); --glass-glow: rgba(255, 255, 255, 0.06);
+    --glass-shadow: 0 12px 34px rgba(0, 0, 0, 0.38), 0 2px 6px rgba(0, 0, 0, 0.22); --label-glass: rgba(14, 22, 28, 0.46); --pill: rgba(255, 255, 255, 0.2); --pill-ink: #F4F7F5;
+    --hover: rgba(255, 255, 255, 0.12); --inset: rgba(255, 255, 255, 0.08); --solid: #141E24; --text-glow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 html, body { height: 100%; }
 body { background: var(--bg); color: var(--ink); font-family: var(--body); overflow: hidden; -webkit-font-smoothing: antialiased; }
@@ -57,77 +89,89 @@ button { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
-.glass { background: var(--paper); -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2); box-shadow: var(--shadow); border: 1px solid var(--line); }
+/* Liquid Glass: a refracting, lightly blurred backdrop layer, a specular rim and sheen on top, content above both */
+.glass { position: relative; isolation: isolate; color: var(--ink); background: transparent; border: 0; border-radius: var(--r, 16px); box-shadow: var(--glass-shadow); text-shadow: var(--text-glow); --gb: 7px; --gt: var(--glass-tint); }
+.glass::before, .glass::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1; }
+.glass::before { background: var(--gt); -webkit-backdrop-filter: blur(var(--gb)) saturate(1.9) brightness(1.06); backdrop-filter: blur(var(--gb)) saturate(1.9) brightness(1.06); }
+#app.lg-refract .glass::before { filter: url(#liquid-glass); clip-path: inset(0 round var(--r, 16px)); }
+.glass::after {
+  background: linear-gradient(150deg, var(--glass-sheen) 0%, transparent 34%, transparent 72%, var(--glass-sheen-low) 100%);
+  box-shadow: inset 1.5px 1.5px 1px -0.5px var(--glass-rim), inset -1px -1px 1px -0.5px var(--glass-rim-low), inset 0 0 0 0.5px var(--glass-edge), inset 0 0 20px var(--glass-glow);
+}
+.lg-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
 
 /* Top row */
 .top { position: absolute; top: var(--top); left: var(--gutter-l); right: var(--gutter-r); display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; pointer-events: none; }
 .top > * { pointer-events: auto; }
-.titleblock { padding: 10px 14px 11px; border-radius: 12px; display: grid; gap: 2px; max-width: 320px; }
+.titleblock { padding: 10px 15px 11px; --r: 18px; display: grid; gap: 2px; max-width: 320px; }
 .titleblock .coords { margin: 0; font: 500 10.5px/1.2 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-variant-numeric: tabular-nums; }
 .titleblock h1 { margin: 0; font: 700 19px/1.15 var(--display); letter-spacing: -0.01em; text-wrap: balance; }
 .titleblock .sub { margin: 0; font-size: 12px; color: var(--muted); }
 
-.tod { display: flex; padding: 4px; border-radius: 999px; gap: 2px; }
+.tod { display: flex; padding: 4px; --r: 999px; gap: 2px; }
 .tod button { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; padding: 7px 13px 7px 10px; min-height: 36px; border-radius: 999px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); transition: background .2s, color .2s; }
 .tod button svg { width: 16px; height: 16px; flex: none; }
-.tod button:hover { color: var(--ink); }
-.tod button[aria-pressed="true"] { background: var(--ink); color: var(--paper-solid); }
+.tod button:hover { color: var(--ink); background: var(--hover); }
+.tod button[aria-pressed="true"], .dock button[aria-pressed="true"], .dock button[aria-expanded="true"] { background: var(--pill); color: var(--pill-ink); text-shadow: none; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85), 0 2px 10px rgba(10, 20, 24, 0.16); }
 
 /* Bottom area */
 .bottom { position: absolute; left: var(--gutter-l); right: var(--gutter-r); bottom: var(--bottom); display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
 .bottom > * { pointer-events: auto; }
-.dock { display: flex; gap: 6px; padding: 6px; border-radius: 999px; flex-wrap: wrap; justify-content: center; }
+.dock { display: flex; gap: 6px; padding: 6px; --r: 999px; flex-wrap: wrap; justify-content: center; }
 .dock button { border: 0; background: transparent; min-height: 40px; padding: 8px 15px; border-radius: 999px; cursor: pointer; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 7px; transition: background .2s, color .2s; }
-.dock button:hover { background: var(--line); }
+.dock button:hover { background: var(--hover); }
 .dock button svg { width: 16px; height: 16px; flex: none; }
-.dock button.primary { background: var(--accent); color: var(--accent-ink); }
-.dock button.primary:hover { filter: brightness(1.06); }
-.dock button[aria-pressed="true"], .dock button[aria-expanded="true"] { background: var(--ink); color: var(--paper-solid); }
+.dock button.primary, .btn.primary, .lm-panel li button[aria-current="true"], .label.is-hot, .label.is-active {
+  background: linear-gradient(180deg, rgba(42, 168, 158, 0.9), rgba(10, 112, 106, 0.92)); color: #FFFFFF; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -1px 0 rgba(0, 0, 0, 0.14), 0 4px 14px rgba(12, 122, 116, 0.32); }
+.dock button.primary:hover, .btn.primary:hover { filter: brightness(1.08); }
 
-.hint { display: flex; align-items: center; gap: 10px; padding: 7px 8px 7px 14px; border-radius: 999px; font-size: 13px; color: var(--ink); max-width: 100%; }
+
+.hint { display: flex; align-items: center; gap: 10px; padding: 7px 8px 7px 15px; --r: 999px; font-size: 13px; max-width: 100%; }
 .hint p { margin: 0; }
-.hint kbd { font: 500 11px var(--mono); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--line); }
+.hint kbd { font: 500 11px var(--mono); padding: 1px 5px; border-radius: 5px; background: var(--inset); box-shadow: inset 0 0 0 0.5px var(--glass-edge); }
 .icon-btn { border: 0; background: transparent; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; display: grid; place-items: center; color: var(--muted); flex: none; }
-.icon-btn:hover { background: var(--line); color: var(--ink); }
+.icon-btn:hover { background: var(--hover); color: var(--ink); }
 .icon-btn svg { width: 14px; height: 14px; }
 
-.lm-panel { position: absolute; bottom: calc(var(--dock-h) + 10px); left: 50%; transform: translateX(-50%); width: min(360px, 100%); border-radius: 16px; padding: 12px; }
+.lm-panel { position: absolute; bottom: calc(var(--dock-h) + 10px); left: 50%; transform: translateX(-50%); width: min(360px, 100%); --r: 24px; --gb: 16px; --gt: var(--glass-tint-strong); padding: 12px; }
 .lm-panel h2 { margin: 2px 6px 8px; font: 500 11px/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .lm-panel ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: min(52vh, 420px); overflow: auto; }
 .lm-panel li button { width: 100%; text-align: left; border: 0; background: transparent; border-radius: 10px; padding: 9px 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-.lm-panel li button:hover { background: var(--line); }
-.lm-panel li button[aria-current="true"] { background: var(--accent); color: var(--accent-ink); }
+.lm-panel li button:hover { background: var(--hover); }
+
 .lm-panel li button[aria-current="true"] .lm-district { color: inherit; opacity: .8; }
 .lm-name { font-weight: 600; font-size: 14.5px; }
 .lm-district { font: 400 11px var(--mono); color: var(--muted); letter-spacing: 0.04em; white-space: nowrap; }
 
 /* Landmark card */
-.card { position: absolute; top: calc(var(--top) + 64px); right: var(--gutter-r); width: 360px; max-height: calc(100% - var(--top) - var(--bottom) - var(--dock-h) - 90px); overflow: auto; border-radius: 18px; padding: 20px 20px 18px; display: grid; gap: 10px; outline: none; }
+.card { position: absolute; top: calc(var(--top) + 64px); right: var(--gutter-r); width: 360px; max-height: calc(100% - var(--top) - var(--bottom) - var(--dock-h) - 90px); display: flex; flex-direction: column; --r: 26px; --gb: 18px; --gt: var(--glass-tint-strong); outline: none; }
+.card-body { display: grid; gap: 10px; padding: 20px 20px 18px; overflow: auto; min-height: 0; flex: 1 1 auto; }
 .card:focus-visible { outline: 2px solid var(--focus); }
 .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
 .card-eyebrow { margin: 0; font: 500 11px/1.2 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--sun); }
 .card h2 { margin: 2px 0 0; font: 700 26px/1.08 var(--display); letter-spacing: -0.015em; text-wrap: balance; }
 .card p.desc { margin: 0; font-size: 15px; line-height: 1.55; }
-.card .look { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--line); font-size: 13.5px; line-height: 1.5; }
+.card .look { margin: 0; padding: 10px 12px; border-radius: 14px; background: var(--inset); box-shadow: inset 0 0 0 0.5px var(--glass-edge), inset 0 1px 0 var(--glass-rim-low); font-size: 13.5px; line-height: 1.5; }
 .card .look strong { font: 500 10.5px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; display: block; color: var(--muted); margin-bottom: 2px; }
 .card-tour { display: grid; gap: 6px; }
 .card-tour span { font: 500 11px var(--mono); letter-spacing: 0.06em; color: var(--muted); font-variant-numeric: tabular-nums; }
-.progress { height: 3px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.progress { height: 4px; border-radius: 4px; background: var(--inset); overflow: hidden; }
 .progress i { display: block; height: 100%; width: 0%; background: var(--accent); }
 .card-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
-.btn { border: 1px solid var(--line); background: transparent; min-height: 40px; padding: 8px 15px; border-radius: 999px; cursor: pointer; font-size: 14px; font-weight: 600; }
-.btn:hover { background: var(--line); }
-.btn.primary { background: var(--accent); border-color: transparent; color: var(--accent-ink); }
+.btn { border: 0; background: var(--inset); color: inherit; box-shadow: inset 0 1px 0 var(--glass-rim-low), inset 0 0 0 0.5px var(--glass-edge); min-height: 40px; padding: 8px 16px; border-radius: 999px; cursor: pointer; font-size: 14px; font-weight: 600; }
+.btn:hover { background: var(--hover); }
+
 
 /* Labels anchored to landmarks */
 #labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-.label { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 6px; padding: 5px 10px 5px 8px; border-radius: 999px; background: var(--label-bg); color: var(--label-ink); font: 600 12px/1.1 var(--body); white-space: nowrap; box-shadow: var(--shadow); pointer-events: auto; cursor: pointer; transition: opacity .25s, background-color .2s, color .2s; will-change: transform; user-select: none; -webkit-user-select: none; }
-.label::after { content: ""; position: absolute; left: 50%; top: 100%; width: 1.5px; height: 9px; margin-left: -0.75px; background: var(--label-bg); }
+.label { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 6px; padding: 5px 10px 5px 8px; border-radius: 999px; background: var(--label-glass); color: var(--ink); -webkit-backdrop-filter: blur(9px) saturate(1.9); backdrop-filter: blur(9px) saturate(1.9); text-shadow: var(--text-glow); font: 600 12px/1.1 var(--body); white-space: nowrap; box-shadow: inset 1px 1px 0 var(--glass-rim), inset -1px -1px 0 var(--glass-rim-low), 0 4px 16px rgba(20, 26, 32, 0.2); pointer-events: auto; cursor: pointer; transition: opacity .25s, background-color .2s, color .2s; will-change: transform; user-select: none; -webkit-user-select: none; }
+.label::after { content: ""; position: absolute; left: 50%; top: 100%; width: 1.5px; height: 9px; margin-left: -0.75px; background: var(--glass-rim); opacity: 0.8; }
 .label .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--sun); flex: none; }
 .label.is-hidden { opacity: 0; pointer-events: none; }
-.label.is-hot, .label.is-active { background: var(--accent); color: var(--accent-ink); }
-.label.is-hot::after, .label.is-active::after { background: var(--accent); }
-.label.is-hot .dot, .label.is-active .dot { background: var(--accent-ink); }
+
+.label.is-hot::after, .label.is-active::after { background: rgba(10, 112, 106, 0.92); opacity: 1; }
+.label.is-hot .dot, .label.is-active .dot { background: #FFFFFF; }
 
 /* Loading and failure */
 .overlay { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 14px; text-align: center; padding: 24px var(--gutter-r) 24px var(--gutter-l); background: radial-gradient(120% 90% at 50% 30%, var(--paper-solid), var(--bg)); transition: opacity .6s ease; }
@@ -145,7 +189,8 @@ button { font: inherit; color: inherit; }
   .titleblock h1 { font-size: 16px; }
   .titleblock .sub { display: none; }
   .tod button { padding: 6px 10px 6px 8px; font-size: 12.5px; }
-  .card { top: auto; left: var(--gutter-l); right: var(--gutter-r); width: auto; bottom: calc(var(--bottom) + var(--dock-h) + 10px); max-height: min(46vh, 420px); padding: 16px 16px 14px; gap: 8px; }
+  .card { top: auto; left: var(--gutter-l); right: var(--gutter-r); width: auto; bottom: calc(var(--bottom) + var(--dock-h) + 10px); max-height: min(46vh, 420px); }
+  .card-body { padding: 16px 16px 14px; gap: 8px; }
   .card h2 { font-size: 22px; }
   .card p.desc { font-size: 14px; line-height: 1.5; }
   .card .look { font-size: 13px; }
@@ -163,6 +208,10 @@ button { font: inherit; color: inherit; }
 #app.card-open .hint { display: none; }
 .lbl-short { display: none; }
 @media (max-width: 480px) { .dock button .lbl-short { display: inline; } }
+@media (prefers-reduced-transparency: reduce) {
+  .glass::before, #app.lg-refract .glass::before { -webkit-backdrop-filter: none; backdrop-filter: none; filter: none; background: var(--solid); }
+  .label { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--solid); }
+}
 @media (prefers-reduced-motion: reduce) {
   .loader-mark { animation: none; }
   .overlay, .label { transition: none; }
@@ -171,7 +220,7 @@ button { font: inherit; color: inherit; }
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
 </head>
 <body>
-<div id="app">
+<div id="app" data-scene="sunset">
   <canvas id="scene" tabindex="0" aria-label="3D model of Marina Bay, Singapore. Arrow keys pan, plus and minus zoom. Use the Landmarks list to visit each landmark."></canvas>
   <div id="labels" aria-hidden="true"></div>
 
@@ -198,6 +247,7 @@ button { font: inherit; color: inherit; }
   </div>
 
   <aside id="card" class="card glass" hidden aria-labelledby="card-title" tabindex="-1">
+    <div class="card-body">
     <div class="card-head">
       <div>
         <p class="card-eyebrow" id="card-district"></p>
@@ -214,6 +264,7 @@ button { font: inherit; color: inherit; }
       <button type="button" class="btn primary" id="card-back">Back to city</button>
       <button type="button" class="btn" id="card-next" hidden>Next stop</button>
       <button type="button" class="btn" id="card-end" hidden>End tour</button>
+    </div>
     </div>
   </aside>
 
@@ -249,6 +300,12 @@ button { font: inherit; color: inherit; }
   </div>
 
   <div id="live" class="sr-only" aria-live="polite"></div>
+  <svg class="lg-defs" aria-hidden="true" focusable="false">
+    <filter id="liquid-glass" x="0" y="0" width="1" height="1" filterUnits="objectBoundingBox" primitiveUnits="objectBoundingBox" color-interpolation-filters="sRGB">
+      <feImage id="lg-map" x="0" y="0" width="1" height="1" preserveAspectRatio="none" result="lens"/>
+      <feDisplacementMap in="SourceGraphic" in2="lens" scale="0.06" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </svg>
 
   <div id="loader" class="overlay" role="status">
     <div class="loader-mark" aria-hidden="true"></div>
@@ -474,6 +531,7 @@ ui.tod.addEventListener('click', (e) => {
 });
 function setTimeOfDay(mode) {
   state.tod = mode;
+  ui.app.dataset.scene = mode;
   for (const b of ui.tod.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.tod === mode));
   state.engine && state.engine.setTime(mode);
   announce(`${mode[0].toUpperCase() + mode.slice(1)} lighting.`);
@@ -511,6 +569,19 @@ function fail(title, msg) {
 }
 
 setupHint();
+
+// Liquid Glass lens: a displacement map that bends the backdrop near each panel's rim and leaves the middle clear.
+// Chromium renders SVG filters on backdrops; other browsers keep the frosted glass without refraction.
+{
+  const map = `<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200' preserveAspectRatio='none'><defs>
+    <linearGradient id='x'><stop offset='0' stop-color='#f00'/><stop offset='.16' stop-color='#800000'/><stop offset='.84' stop-color='#800000'/><stop offset='1' stop-color='#000'/></linearGradient>
+    <linearGradient id='y' x2='0' y2='1'><stop offset='0' stop-color='#0f0'/><stop offset='.24' stop-color='#008000'/><stop offset='.76' stop-color='#008000'/><stop offset='1' stop-color='#000'/></linearGradient></defs>
+    <rect width='200' height='200' fill='url(#x)'/><rect width='200' height='200' fill='url(#y)' style='mix-blend-mode:screen'/></svg>`;
+  document.getElementById('lg-map').setAttribute('href', 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(map));
+  const brands = navigator.userAgentData?.brands || [];
+  // the refraction pass re-filters every frame over the live 3D view, so phones and tablets keep the lighter frosted glass
+  if (brands.some(b => /Chromium|Google Chrome|Microsoft Edge|Opera/.test(b.brand)) && !coarseMQ.matches) ui.app.classList.add('lg-refract');
+}
 
 /* ------------------------------------------------------------------ */
 /* 3D engine                                                           */
