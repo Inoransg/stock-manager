@@ -630,7 +630,7 @@ function createEngine() {
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
   controls.screenSpacePanning = false;
-  controls.minDistance = 8;
+  controls.minDistance = 5;
   controls.maxDistance = 420;
   controls.minPolarAngle = 0.12;
   controls.maxPolarAngle = 1.45;
@@ -751,15 +751,6 @@ function createEngine() {
     for (let i = -w; i < w * 2; i += 21) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + h * 0.6, h); g.stroke(); g.beginPath(); g.moveTo(i + h * 0.6, 0); g.lineTo(i, h); g.stroke(); }
   });
   gridTex.wrapS = gridTex.wrapT = THREE.RepeatWrapping; gridTex.repeat.set(4, 2);
-  const durianTex = canvasTex(256, 256, (g, w, h) => {
-    g.fillStyle = '#C9C4B8'; g.fillRect(0, 0, w, h);
-    const s = 16;
-    for (let y = 0; y < h; y += s) for (let x = (y / s) % 2 ? s / 2 : 0; x < w + s; x += s) {
-      g.fillStyle = '#F2EEE6'; g.beginPath(); g.moveTo(x, y + s); g.lineTo(x + s / 2, y + 2); g.lineTo(x + s, y + s); g.closePath(); g.fill();
-      g.fillStyle = '#9C978C'; g.beginPath(); g.moveTo(x + s / 2, y + 2); g.lineTo(x + s, y + s); g.lineTo(x + s * 0.62, y + s); g.closePath(); g.fill();
-    }
-  });
-  durianTex.wrapS = durianTex.wrapT = THREE.RepeatWrapping; durianTex.repeat.set(6, 3);
   const wakeTex = canvasTex(64, 128, (g, w, h) => {
     g.clearRect(0, 0, w, h);
     for (let y = 0; y < h; y++) { const t = y / h; const half = 4 + t * (w / 2 - 6); const a = (1 - t) * 0.9; g.fillStyle = `rgba(255,255,255,${a})`; g.fillRect(w / 2 - half, y, 3, 1); g.fillRect(w / 2 + half - 3, y, 3, 1); g.fillStyle = `rgba(255,255,255,${a * 0.35})`; g.fillRect(w / 2 - 2, y, 4, 1); }
@@ -805,6 +796,10 @@ function createEngine() {
             sgOn = mix(0.42, step(0.58, h), nearK) * sgWin;
           }
           diffuseColor.rgb = mix(diffuseColor.rgb, uGlass, sgWin * 0.6);`)
+        .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+          roughnessFactor = mix(roughnessFactor, 0.16, sgWin);`)
+        .replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
+          metalnessFactor = mix(metalnessFactor, 0.4, sgWin * 0.7);`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
           totalEmissiveRadiance += vec3(1.0, 0.7, 0.38) * sgOn * uLit * 1.35;`);
     };
@@ -878,19 +873,24 @@ function createEngine() {
     fog: true,
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
       uTime: { value: 0 }, uDeep: { value: C('#000') }, uShallow: { value: C('#000') }, uSky: { value: C('#000') },
-      uSunDir: { value: new V3(0, 1, 0) }, uSunCol: { value: C('#fff') }, uSpec: { value: 1 }, uGlow: { value: C('#000') }, uNight: { value: 0 }, uMask: { value: null }
+      uSunDir: { value: new V3(0, 1, 0) }, uSunCol: { value: C('#fff') }, uSpec: { value: 1 }, uGlow: { value: C('#000') }, uNight: { value: 0 }, uMask: { value: null },
+      uRefl: { value: null }, uTexMatrix: { value: new THREE.Matrix4() }, uReflK: { value: 0.4 }
     }]),
     vertexShader: `#include <fog_pars_vertex>
+      uniform mat4 uTexMatrix;
       varying vec3 vW;
+      varying vec4 vRefl;
       void main() {
+        vRefl = uTexMatrix * vec4(position, 1.0);
         vec4 w = modelMatrix * vec4(position, 1.0);
         vW = w.xyz;
         vec4 mvPosition = viewMatrix * w;
         gl_Position = projectionMatrix * mvPosition;
         #include <fog_vertex>
       }`,
-    fragmentShader: `uniform float uTime, uSpec, uNight; uniform vec3 uDeep, uShallow, uSky, uSunCol, uGlow, uSunDir; uniform sampler2D uMask;
+    fragmentShader: `uniform float uTime, uSpec, uNight; uniform vec3 uDeep, uShallow, uSky, uSunCol, uGlow, uSunDir; uniform sampler2D uMask, uRefl; uniform float uReflK;
       varying vec3 vW;
+      varying vec4 vRefl;
       #include <common>
       #include <fog_pars_fragment>
       void main() {
@@ -907,7 +907,9 @@ function createEngine() {
         col += uShallow * 0.07 * c * shallow;
         vec3 V = normalize(cameraPosition - vW);
         float fres = pow(1.0 - max(dot(n, V), 0.0), 4.0);
-        col = mix(col, uSky, clamp(fres * 0.6, 0.0, 0.55));
+        col = mix(col, uSky, clamp(fres * 0.25, 0.0, 0.25));
+        vec3 refl = texture2D(uRefl, clamp(vRefl.xy / vRefl.w + n.xz * 0.028, 0.001, 0.999)).rgb;
+        col = mix(col, refl, uReflK * (0.5 + 0.5 * fres) * (1.0 - 0.4 * shallow));
         vec3 R = reflect(-V, n);
         col += uSunCol * pow(max(dot(R, normalize(uSunDir)), 0.0), 160.0) * uSpec;
         float foam = smoothstep(0.40, 0.49, m) * (0.6 + 0.4 * sin(t * 1.6 + m * 40.0));
@@ -921,7 +923,34 @@ function createEngine() {
   }));
   waterMat.uniforms.uMask.value = maskTex;
   const water = new THREE.Mesh(track(new THREE.PlaneGeometry(260, 220)), waterMat);
-  water.rotation.x = -Math.PI / 2; scene.add(water);
+  water.rotation.x = -Math.PI / 2; scene.add(water); water.updateMatrixWorld();
+  // Planar mirror (same maths as three's Reflector) so towers and lights reflect in the bay
+  const mirror = { rt: track(new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType })), cam: new THREE.PerspectiveCamera(), plane: new THREE.Plane(), clip: new THREE.Vector4(), q: new THREE.Vector4(), n: new V3(), wp: new V3(), cp: new V3(), view: new V3(), look: new V3(), tgt: new V3(), rot: new THREE.Matrix4(), scale: coarse ? 0.35 : 0.5 };
+  waterMat.uniforms.uRefl.value = mirror.rt.texture;
+  function renderMirror() {
+    const m = mirror, tm = waterMat.uniforms.uTexMatrix.value;
+    m.wp.setFromMatrixPosition(water.matrixWorld); m.cp.setFromMatrixPosition(camera.matrixWorld);
+    m.rot.extractRotation(water.matrixWorld); m.n.set(0, 0, 1).applyMatrix4(m.rot);
+    m.view.subVectors(m.wp, m.cp); if (m.view.dot(m.n) > 0) return;
+    m.view.reflect(m.n).negate().add(m.wp);
+    m.rot.extractRotation(camera.matrixWorld);
+    m.look.set(0, 0, -1).applyMatrix4(m.rot).add(m.cp);
+    m.tgt.subVectors(m.wp, m.look).reflect(m.n).negate().add(m.wp);
+    const vc = m.cam; vc.position.copy(m.view); vc.up.set(0, 1, 0).applyMatrix4(m.rot).reflect(m.n); vc.lookAt(m.tgt);
+    vc.far = camera.far; vc.updateMatrixWorld(); vc.projectionMatrix.copy(camera.projectionMatrix);
+    tm.set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1).multiply(vc.projectionMatrix).multiply(vc.matrixWorldInverse).multiply(water.matrixWorld);
+    m.plane.setFromNormalAndCoplanarPoint(m.n, m.wp).applyMatrix4(vc.matrixWorldInverse);
+    m.clip.set(m.plane.normal.x, m.plane.normal.y, m.plane.normal.z, m.plane.constant);
+    const e = vc.projectionMatrix.elements;
+    m.q.set((Math.sign(m.clip.x) + e[8]) / e[0], (Math.sign(m.clip.y) + e[9]) / e[5], -1, (1 + e[10]) / e[14]);
+    m.clip.multiplyScalar(2 / m.clip.dot(m.q));
+    e[2] = m.clip.x; e[6] = m.clip.y; e[10] = m.clip.z + 1 - 0.003; e[14] = m.clip.w;
+    vc.projectionMatrixInverse.copy(vc.projectionMatrix).invert();
+    const ringVis = ring.visible; water.visible = false; ring.visible = false;
+    const auto = renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate = false;
+    renderer.setRenderTarget(m.rt); renderer.clear(); renderer.render(scene, vc); renderer.setRenderTarget(null);
+    renderer.shadowMap.autoUpdate = auto; water.visible = true; ring.visible = ringVis;
+  }
 
   const landMat = std({ map: groundTex, roughness: 0.95 });
   const quayMat = std({ color: '#D8C9AB', roughness: 0.9 });
@@ -980,6 +1009,8 @@ function createEngine() {
     slant: track(new THREE.ExtrudeGeometry(slantShape, { depth: 1, bevelEnabled: false }).translate(0, 0, -0.5)),
     roof: geoFlat(new THREE.ConeGeometry(0.707, 1, 4).rotateY(Math.PI / 4).translate(0, 0.5, 0))
   };
+  GEO.unit = GEO.box;
+  const UNITS = ['#C9CBC6', '#B7BCB8', '#D8D6CF', '#A7B1B3'];
   const WALLS = ['#F3EBDD', '#EFE4CF', '#F7F1E6', '#E9DCC4', '#EDE5D8', '#E2E6E1', '#DCE4E6', '#F1E3CF'];
   const ROOFS = ['#C88B69', '#B9785A', '#9AA8A5', '#D4A07C'];
   const pools = { cbd: {}, other: {} };
@@ -1017,6 +1048,13 @@ function createEngine() {
         put(pool, 'box', x - w * 0.27, y0, z, w * 0.44, h, d, 0, col);
         put(pool, 'box', x + w * 0.27, y0, z, w * 0.44, h * 0.84, d, 0, col);
         put(pool, 'box', x, y0 + h * 0.6, z, w * 0.2, 0.8, d * 0.4, 0, col); break;
+    }
+    // rooftop plant: cooling units, tanks and lift overruns
+    const roofY = { slab: top + Math.max(0.6, h * 0.05), stepped: top, oct: y0 + h * 0.96, round: top, taper: top }[kind];
+    const roofW = { slab: 0.62, stepped: 0.56, oct: 0.55, round: 0.6, taper: 0.6 }[kind];
+    if (roofY !== undefined && rand() < 0.8) {
+      const n = 1 + Math.floor(rand() * 3);
+      for (let i = 0; i < n; i++) { const uw = w * roofW * rr(0.18, 0.32); put(pool, 'unit', x + rr(-0.22, 0.22) * w * roofW, roofY, z + rr(-0.22, 0.22) * d * roofW, uw, rr(0.25, 0.55), uw * rr(0.7, 1.3), 0, pick(UNITS)); }
     }
     if (pool === 'cbd' && top > tallest.h && Math.hypot(x + 72, z - 24) < 22) tallest = { h: top, x, z };
     markRect(x, z, w, d);
@@ -1101,7 +1139,7 @@ function createEngine() {
   {
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new V3(), s = new V3(), col = new THREE.Color();
     for (const [poolName, pool] of Object.entries(pools)) for (const [type, list] of Object.entries(pool)) {
-      const mesh = new THREE.InstancedMesh(GEO[type], type === 'roof' ? cityMats[poolName].roof : cityMats[poolName].wall, list.length);
+      const mesh = new THREE.InstancedMesh(GEO[type], type === 'roof' || type === 'unit' ? cityMats[poolName].roof : cityMats[poolName].wall, list.length);
       list.forEach((b, i) => { m4.compose(p.set(b.x, b.y, b.z), q.setFromEuler(e.set(0, b.ry, 0)), s.set(b.sx, b.sy, b.sz)); mesh.setMatrixAt(i, m4); mesh.setColorAt(i, col.set(b.color)); });
       mesh.castShadow = mesh.receiveShadow = true; mesh.frustumCulled = false; mesh.computeBoundingSphere();
       scene.add(mesh); cityMeshes.push(mesh);
@@ -1313,41 +1351,129 @@ function createEngine() {
   }
 
   /* ---------------- Merlion ---------------- */
-  const spout = { points: null, data: [] };
+  const spout = { points: null, data: [], splash: null, sdata: [] };
   {
-    const g = new THREE.Group(); g.position.set(-40.6, LAND_Y, 1.2); scene.add(g);
-    const statue = nightLit(std({ color: '#F3F0E8', roughness: 0.5 }), '#FFF1D8', 0.5, 'merlion');
-    const ped = new THREE.Mesh(track(new THREE.CylinderGeometry(1.35, 1.6, 0.8, 24)), quayMat); ped.position.y = 0.4; ped.castShadow = ped.receiveShadow = true; g.add(pickable(ped, 'merlion'));
-    const body = new THREE.Mesh(taperTube([new V3(-2.5, 4.0, 0), new V3(-2.5, 3.0, 0), new V3(-1.9, 1.7, 0), new V3(-0.8, 1.1, 0), new V3(0.15, 1.5, 0), new V3(0.45, 2.5, 0)], 48, 12,
-      (t) => 0.06 + Math.sin(Math.min(1, t * 1.15) * Math.PI * 0.5) * 0.6), statue);
-    body.castShadow = true; g.add(pickable(body, 'merlion'));
-    const fin = new THREE.Mesh(track(new THREE.ConeGeometry(0.42, 1.2, 4)), statue);
-    fin.position.set(-2.75, 4.35, 0.25); fin.rotation.set(0.5, 0, 0.5); fin.scale.set(1, 1, 0.35); fin.castShadow = true; g.add(fin);
-    const fin2 = fin.clone(); fin2.position.z = -0.25; fin2.rotation.set(-0.5, 0, 0.5); g.add(fin2);
-    const mane = new THREE.Mesh(track(new THREE.IcosahedronGeometry(0.95, 0)), statue); mane.position.set(0.3, 2.95, 0); mane.scale.set(0.8, 1.05, 1.05); mane.castShadow = true; g.add(pickable(mane, 'merlion'));
-    const head = new THREE.Mesh(track(new THREE.SphereGeometry(0.62, 20, 14)), statue); head.position.set(0.78, 2.95, 0); head.castShadow = true; g.add(pickable(head, 'merlion'));
-    const snout = new THREE.Mesh(GEO.box, statue); snout.scale.set(0.55, 0.42, 0.5); snout.position.set(1.22, 2.58, 0); g.add(snout);
-    for (const z of [-0.36, 0.36]) { const ear = new THREE.Mesh(fin.geometry, statue); ear.scale.set(0.35, 0.4, 0.35); ear.position.set(0.55, 3.62, z); g.add(ear); }
-    // Water arc from the mouth
-    const n = 170, pos = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) spout.data.push({ ph: i / n, v: rr(0.94, 1.06), z: rr(-0.25, 0.25) });
+    const S = 1.3;
+    const g = new THREE.Group(); g.position.set(-40.6, LAND_Y, 1.2); g.scale.setScalar(S); scene.add(g);
+    const scaleTex = canvasTex(256, 256, (c, w, h) => {
+      c.fillStyle = '#7a7a7a'; c.fillRect(0, 0, w, h);
+      const r = 16;
+      for (let row = 0; row <= 20; row++) for (let col = -1; col <= 8; col++) {
+        const x = col * r * 2 + (row % 2 ? r : 0), y = row * r * 0.8 - r * 0.4;
+        const gr = c.createRadialGradient(x, y - r * 0.3, r * 0.1, x, y, r);
+        gr.addColorStop(0, '#b4b4b4'); gr.addColorStop(0.78, '#a0a0a0'); gr.addColorStop(0.9, '#4c4c4c'); gr.addColorStop(1, '#6a6a6a');
+        c.fillStyle = gr; c.beginPath(); c.arc(x, y, r, 0, Math.PI); c.closePath(); c.fill();
+      }
+    }, false);
+    scaleTex.wrapS = scaleTex.wrapT = THREE.RepeatWrapping; scaleTex.repeat.set(3, 2);
+    const statue = nightLit(std({ color: '#F2EEE6', roughness: 0.42 }), '#FFF1D8', 0.5, 'merlion');
+    const scaled = nightLit(std({ color: '#F0ECE3', roughness: 0.45, bumpMap: scaleTex, bumpScale: 3 }), '#FFF1D8', 0.5, 'merlion');
+    const maneMat = nightLit(std({ color: '#F2EEE6', roughness: 0.5, flatShading: true }), '#FFF1D8', 0.5, 'merlion');
+    const dark = nightLit(std({ color: '#3A3330', roughness: 0.75 }), '#000000', 0, 'merlion');
+    const noseMat = nightLit(std({ color: '#A79F94', roughness: 0.6 }), '#000000', 0, 'merlion');
+    const stone = std({ color: '#CFC7B9', roughness: 0.95, flatShading: true });
+    const shadow = (m) => { m.castShadow = true; m.receiveShadow = true; return m; };
+
+    // hewn rock base with carved waves
+    const prof = [[1.6, 0], [1.68, 0.22], [1.55, 0.48], [1.25, 0.7], [0.85, 0.84], [0.35, 0.92], [0, 0.94]].map(([x, y]) => new THREE.Vector2(x, y));
+    const rockGeo = track(new THREE.LatheGeometry(prof, 20));
+    { const a = rockGeo.attributes.position; const h = (x, y, z) => { const v = Math.sin(x * 12.99 + y * 78.23 + z * 37.71) * 43758.5; return v - Math.floor(v); };
+      for (let i = 0; i < a.count; i++) { const x = a.getX(i), y = a.getY(i), z = a.getZ(i); if (y < 0.05) continue; const k = 1 + (h(+x.toFixed(3), +y.toFixed(3), +z.toFixed(3)) - 0.5) * 0.18; a.setXYZ(i, x * k, y + (k - 1) * 0.25, z * k); }
+      rockGeo.computeVertexNormals(); }
+    g.add(pickable(shadow(new THREE.Mesh(rockGeo, stone)), 'merlion'));
+    const waveGeo = track(new THREE.TorusGeometry(0.4, 0.1, 8, 22, Math.PI * 1.25));
+    for (let i = 0; i < 6; i++) {
+      const a = i / 6 * Math.PI * 2 + 0.3, w = shadow(new THREE.Mesh(waveGeo, statue));
+      w.position.set(Math.cos(a) * 1.2, 0.5 + (i % 2) * 0.12, Math.sin(a) * 1.2); w.rotation.y = -a; w.scale.setScalar(0.8 + (i % 3) * 0.15);
+      g.add(w);
+    }
+
+    // fish body rising from the rock, with a curled tail
+    const body = shadow(new THREE.Mesh(taperTube([new V3(-0.6, 0.7, 0), new V3(-0.6, 1.4, 0), new V3(-0.3, 2.2, 0), new V3(0.05, 2.9, 0), new V3(0.3, 3.45, 0)], 44, 24,
+      (t) => 0.74 - 0.26 * t + 0.06 * Math.sin(t * Math.PI)), scaled));
+    g.add(pickable(body, 'merlion'));
+    const tailPts = [new V3(-0.5, 1.1, 0), new V3(-1.2, 1.25, 0.04), new V3(-1.8, 1.75, 0.08), new V3(-2.0, 2.55, 0.08), new V3(-1.8, 3.25, 0.04), new V3(-1.4, 3.62, 0)];
+    const tail = shadow(new THREE.Mesh(taperTube(tailPts, 44, 16, (t) => 0.5 * (1 - t) + 0.07), scaled));
+    g.add(pickable(tail, 'merlion'));
+    const finShape = new THREE.Shape();
+    finShape.moveTo(0, 0); finShape.quadraticCurveTo(0.55, 0.35, 0.8, 1.0); finShape.quadraticCurveTo(0.36, 0.62, 0.0, 0.66);
+    finShape.quadraticCurveTo(-0.36, 0.62, -0.64, 1.02); finShape.quadraticCurveTo(-0.45, 0.35, 0, 0);
+    const finGeo = track(new THREE.ExtrudeGeometry(finShape, { depth: 0.07, bevelEnabled: true, bevelSize: 0.03, bevelThickness: 0.03, bevelSegments: 1, curveSegments: 10 }).translate(0, 0, -0.035));
+    const tf = shadow(new THREE.Mesh(finGeo, statue)); tf.position.copy(tailPts[5]); tf.rotation.z = -0.85; tf.scale.setScalar(1.1); g.add(pickable(tf, 'merlion'));
+    for (const side of [-1, 1]) {
+      const pf = shadow(new THREE.Mesh(finGeo, statue)); pf.position.set(0.05, 1.15, side * 0.58); pf.rotation.set(side * 1.8, 0, 0.45); pf.scale.setScalar(0.6); g.add(pf);
+    }
+
+    // lion head: sculpted from overlapping forms so the face reads from a distance
+    const sph = track(new THREE.SphereGeometry(1, 28, 18));
+    const hd = new THREE.Group(); hd.position.set(0.38, 3.85, 0); g.add(hd);
+    const part = (mat, x, y, z, sx, sy, sz, rz = 0) => { const m = shadow(new THREE.Mesh(sph, mat)); m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.rotation.z = rz; hd.add(pickable(m, 'merlion')); return m; };
+    part(statue, -0.05, 0.1, 0, 0.66, 0.62, 0.62);          // cranium
+    part(statue, 0.36, 0.12, 0, 0.46, 0.5, 0.54);           // forehead and face plane
+    part(statue, 0.72, 0.05, 0, 0.24, 0.13, 0.14);          // bridge of the nose
+    part(noseMat, 0.95, -0.04, 0, 0.1, 0.08, 0.15);         // nose
+    part(dark, 0.84, -0.39, 0, 0.14, 0.13, 0.19);           // open mouth
+    part(statue, 0.7, -0.58, 0, 0.23, 0.1, 0.21);           // lower jaw
+    for (const sd of [-1, 1]) {
+      part(statue, 0.72, 0.32, sd * 0.24, 0.17, 0.085, 0.21, -0.3); // brow
+      part(statue, 0.73, 0.17, sd * 0.25, 0.1, 0.085, 0.1);         // eye
+      part(dark, 0.81, 0.165, sd * 0.26, 0.04, 0.045, 0.045);      // pupil
+      part(statue, 0.52, -0.15, sd * 0.33, 0.28, 0.25, 0.23);       // cheek
+      part(statue, 0.85, -0.19, sd * 0.13, 0.18, 0.15, 0.15);      // whisker pad
+      const fang = shadow(new THREE.Mesh(track(new THREE.ConeGeometry(0.032, 0.11, 8)), statue)); fang.position.set(0.93, -0.34, sd * 0.09); fang.rotation.z = Math.PI; hd.add(fang);
+    }
+    // mane: rings of curls framing the face, continuing down the neck
+    const curls = [];
+    for (const [X, R, n, sz] of [[0.18, 0.82, 20, 0.14], [-0.02, 0.93, 24, 0.15], [-0.25, 0.97, 26, 0.16], [-0.5, 0.88, 22, 0.16], [-0.72, 0.66, 16, 0.15], [-0.86, 0.38, 9, 0.13]]) {
+      for (let k = 0; k < n; k++) { const a = (k + (n % 2) * 0.5) / n * Math.PI * 2; curls.push([X + rr(-0.03, 0.03), Math.cos(a) * R, Math.sin(a) * R, sz * rr(0.85, 1.15)]); }
+    }
+    for (let k = 0; k < 14; k++) curls.push([-0.45 - rr(0, 0.3), -0.55 - k * 0.07, rr(-0.35, 0.35), rr(0.13, 0.17)]);
+    const curlMesh = new THREE.InstancedMesh(track(new THREE.IcosahedronGeometry(1, 1)), maneMat, curls.length);
+    const cm = new THREE.Matrix4(), cq = new THREE.Quaternion(), ce = new THREE.Euler();
+    curls.forEach(([x, y, z, r], i) => curlMesh.setMatrixAt(i, cm.compose(new V3(x, y, z), cq.setFromEuler(ce.set(rr(0, 3), rr(0, 3), rr(0, 3))), new V3(r, r, r * 0.68))));
+    curlMesh.castShadow = true; hd.add(pickable(curlMesh, 'merlion'));
+
+    // water arc from the open mouth, with a splash where it lands
+    const n = 200, pos = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) spout.data.push({ ph: i / n, v: rr(0.95, 1.05), z: rr(-0.18, 0.18) });
     const geo = track(new THREE.BufferGeometry()); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    const sm = track(new THREE.PointsMaterial({ map: glowTex, color: 0xE6F8F8, size: 0.34, transparent: true, opacity: 0.85, depthWrite: false }));
+    const sm = track(new THREE.PointsMaterial({ map: glowTex, color: 0xE6F8F8, size: 0.3, transparent: true, opacity: 0.9, depthWrite: false }));
     spout.points = new THREE.Points(geo, sm); spout.points.frustumCulled = false; g.add(spout.points);
+    const ns = 60, spos = new Float32Array(ns * 3);
+    for (let i = 0; i < ns; i++) spout.sdata.push({ ph: rand(), a: rand() * Math.PI * 2, h: rr(0.3, 0.8) });
+    const sgeo = track(new THREE.BufferGeometry()); sgeo.setAttribute('position', new THREE.BufferAttribute(spos, 3));
+    spout.splash = new THREE.Points(sgeo, sm); spout.splash.frustumCulled = false; g.add(spout.splash);
     g.updateMatrixWorld(true);
     markCircle(-40.6, 1.2, 4);
-    registerLm('merlion', { anchor: g.localToWorld(new V3(0.4, 5.2, 0)), ring: { x: -40.6, z: 1.2, r: 4.5, y: LAND_Y }, view: { t: [-40.5, 3.0, 1.2], az: 138, el: 13, d: 21 } });
+    registerLm('merlion', { anchor: g.localToWorld(new V3(0.2, 5.3, 0)), ring: { x: -40.6, z: 1.2, r: 3.6, y: LAND_Y }, view: { t: [-40.0, 5.0, 1.2], az: 116, el: 6, d: 14 } });
   }
 
   /* ---------------- Esplanade ---------------- */
   {
     const g = new THREE.Group(); g.position.set(-25, LAND_Y, -44); g.rotation.y = 0.08; scene.add(g);
-    const skin = nightLit(std({ color: '#F2EEE6', map: durianTex, bumpMap: durianTex, bumpScale: 2, roughness: 0.5, metalness: 0.25 }), '#FFB25C', 0.4, 'esplanade');
+    const skin = nightLit(std({ color: '#E9E6DE', roughness: 0.38, metalness: 0.45, flatShading: true }), '#FFC27A', 0.22, 'esplanade');
     const podium = nightLit(windowMaterial({ color: '#EDE5D6' }), '#000000', 0, 'esplanade');
     const domeGeo = track(new THREE.SphereGeometry(1, 40, 18, 0, Math.PI * 2, 0, Math.PI / 2));
     const base = new THREE.Mesh(GEO.box, podium); base.scale.set(22, 1.2, 7); base.position.set(0, 0, 1.5); base.castShadow = base.receiveShadow = true; g.add(pickable(base, 'esplanade'));
-    const d1 = new THREE.Mesh(domeGeo, skin); d1.scale.set(6.2, 4.2, 4.8); d1.position.set(-5.6, 0.2, 0); d1.castShadow = true; g.add(pickable(d1, 'esplanade'));
-    const d2 = new THREE.Mesh(domeGeo, skin); d2.scale.set(5.0, 3.5, 4.1); d2.position.set(5.6, 0.2, 0.6); d2.castShadow = true; g.add(pickable(d2, 'esplanade'));
+    const glassDome = nightLit(std({ color: '#8C9A9F', roughness: 0.22, metalness: 0.55 }), '#FFB25C', 0.55, 'esplanade');
+    const DOMES = [[-5.6, 0, 6.2, 4.2, 4.8], [5.6, 0.6, 5.0, 3.5, 4.1]];
+    for (const [cx, cz, a, b, c] of DOMES) { const d = new THREE.Mesh(domeGeo, glassDome); d.scale.set(a, b, c); d.position.set(cx, 0.2, cz); d.castShadow = true; g.add(pickable(d, 'esplanade')); }
+    // thousands of triangular aluminium sunshades give the durian texture
+    const spots = [];
+    for (const [cx, cz, a, b, c] of DOMES) {
+      for (let j = 0, phi = 0.06; phi < 1.5; phi += 0.085, j++) {
+        const count = Math.max(1, Math.round(2 * Math.PI * Math.cos(phi) * (a + c) / 2 / 0.58));
+        for (let k = 0; k < count; k++) {
+          const th = (k + (j % 2) * 0.5) / count * Math.PI * 2;
+          const p = new V3(a * Math.cos(phi) * Math.cos(th), b * Math.sin(phi), c * Math.cos(phi) * Math.sin(th));
+          spots.push([p.clone().add(new V3(cx, 0.2, cz)), new V3(p.x / (a * a), p.y / (b * b), p.z / (c * c)).normalize()]);
+        }
+      }
+    }
+    const shades = new THREE.InstancedMesh(track(new THREE.ConeGeometry(0.25, 0.5, 3).translate(0, 0.18, 0)), skin, spots.length);
+    const sm4 = new THREE.Matrix4(), sq = new THREE.Quaternion(), one = new V3(1, 1, 1);
+    spots.forEach(([p, nn], i) => shades.setMatrixAt(i, sm4.compose(p, sq.setFromUnitVectors(UP, nn), one)));
+    shades.castShadow = true; g.add(pickable(shades, 'esplanade'));
     g.updateMatrixWorld(true);
     markCircle(-25, -44, 11);
     registerLm('esplanade', { anchor: g.localToWorld(new V3(-5.6, 6.4, 0)), ring: { x: -25, z: -43, r: 12.5, y: LAND_Y }, view: { t: [-25, 2, -44], az: 15, el: 26, d: 40 } });
@@ -1430,6 +1556,26 @@ function createEngine() {
     scene.add(post, head, glowPoints(lp, 0xFFC977, 2.6));
   }
 
+  {
+    const g = groundTex.image.getContext('2d');
+    g.save(); g.fillStyle = '#000'; g.shadowOffsetX = 10000;
+    g.shadowColor = 'rgba(70,48,26,0.42)'; g.shadowBlur = 10;
+    for (const pool of Object.values(pools)) for (const [type, list] of Object.entries(pool)) {
+      if (type === 'roof' || type === 'unit') continue;
+      for (const b of list) {
+        if (b.y > LAND_Y + 0.01) continue;
+        const turned = Math.abs(Math.sin(b.ry)) > 0.5, w = (turned ? b.sz : b.sx) * GS, d = (turned ? b.sx : b.sz) * GS;
+        g.beginPath();
+        if (type === 'cyl' || type === 'oct') g.ellipse(gx(b.x) - 10000, gz(b.z), w / 2, d / 2, 0, 0, Math.PI * 2); else g.rect(gx(b.x) - w / 2 - 10000, gz(b.z) - d / 2, w, d);
+        g.fill();
+      }
+    }
+    g.shadowColor = 'rgba(40,60,20,0.32)'; g.shadowBlur = 6;
+    for (const t of trees) { g.beginPath(); g.arc(gx(t.x) - 10000, gz(t.z), t.r * 0.75 * GS, 0, Math.PI * 2); g.fill(); }
+    g.restore();
+    groundTex.needsUpdate = true;
+  }
+
   /* ---------------- Boats ---------------- */
   const boats = [];
   {
@@ -1488,12 +1634,12 @@ function createEngine() {
   /* ---------------- Time of day ---------------- */
   const n3 = (x, y, z) => new V3(x, y, z).normalize();
   const PRESETS = {
-    day: { skyTop: '#4F9AD4', skyHorizon: '#D3E7EC', skyBottom: '#E2DDCC', sunColor: '#FFF3DC', sunInt: 2.9, sunDir: n3(0.42, 0.9, 0.5), hemiSky: '#D7ECFF', hemiGround: '#C8B48E', hemiInt: 1.15, exposure: 1.0, fog: '#D5E5E8', fogNear: 260, fogFar: 1100, waterDeep: '#0A7889', waterShallow: '#37CCC0', glass: '#B4C6CB', cityGlow: '#000000', lit: 0, glow: 0, stars: 0, spec: 0.3, sunGlow: 0.6, disk: 0.7 },
-    sunset: { skyTop: '#4A5A95', skyHorizon: '#F7BE8C', skyBottom: '#EEC6A6', sunColor: '#FFC08A', sunInt: 2.9, sunDir: n3(-0.92, 0.3, -0.26), hemiSky: '#F7DCC5', hemiGround: '#8EA9A6', hemiInt: 1.05, exposure: 1.08, fog: '#F0C6A6', fogNear: 220, fogFar: 1000, waterDeep: '#0C7286', waterShallow: '#40C8BD', glass: '#E6B587', cityGlow: '#FFB070', lit: 0.25, glow: 0.3, stars: 0, spec: 1.6, sunGlow: 1.1, disk: 1.0 },
-    night: { skyTop: '#060B1C', skyHorizon: '#283255', skyBottom: '#0B1120', sunColor: '#A9C0FF', sunInt: 0.55, sunDir: n3(0.5, 0.75, -0.42), hemiSky: '#34466C', hemiGround: '#1B1F28', hemiInt: 0.6, exposure: 1.15, fog: '#1B2442', fogNear: 170, fogFar: 850, waterDeep: '#05223A', waterShallow: '#0E4E5E', glass: '#18232D', cityGlow: '#FFB46A', lit: 1, glow: 1, stars: 1, spec: 0.5, sunGlow: 0.35, disk: 0.55 }
+    day: { skyTop: '#4F9AD4', skyHorizon: '#D3E7EC', skyBottom: '#E2DDCC', sunColor: '#FFF3DC', sunInt: 2.9, sunDir: n3(0.42, 0.9, 0.5), hemiSky: '#D7ECFF', hemiGround: '#C8B48E', hemiInt: 1.15, exposure: 0.9, fog: '#D5E5E8', fogNear: 260, fogFar: 1100, waterDeep: '#0A7889', waterShallow: '#37CCC0', glass: '#B4C6CB', cityGlow: '#000000', lit: 0, glow: 0, stars: 0, spec: 0.3, sunGlow: 0.6, disk: 0.7, refl: 0.3 },
+    sunset: { skyTop: '#4A5A95', skyHorizon: '#F7BE8C', skyBottom: '#EEC6A6', sunColor: '#FFC08A', sunInt: 2.9, sunDir: n3(-0.92, 0.3, -0.26), hemiSky: '#F7DCC5', hemiGround: '#8EA9A6', hemiInt: 1.05, exposure: 1.08, fog: '#F0C6A6', fogNear: 220, fogFar: 1000, waterDeep: '#0C7286', waterShallow: '#40C8BD', glass: '#E6B587', cityGlow: '#FFB070', lit: 0.25, glow: 0.3, stars: 0, spec: 1.6, sunGlow: 1.1, disk: 1.0, refl: 0.42 },
+    night: { skyTop: '#060B1C', skyHorizon: '#283255', skyBottom: '#0B1120', sunColor: '#A9C0FF', sunInt: 0.55, sunDir: n3(0.5, 0.75, -0.42), hemiSky: '#34466C', hemiGround: '#1B1F28', hemiInt: 0.6, exposure: 1.15, fog: '#1B2442', fogNear: 170, fogFar: 850, waterDeep: '#05223A', waterShallow: '#0E4E5E', glass: '#18232D', cityGlow: '#FFB46A', lit: 1, glow: 1, stars: 1, spec: 0.5, sunGlow: 0.35, disk: 0.55, refl: 0.6 }
   };
   const COLOR_KEYS = ['skyTop', 'skyHorizon', 'skyBottom', 'sunColor', 'hemiSky', 'hemiGround', 'fog', 'waterDeep', 'waterShallow', 'glass', 'cityGlow'];
-  const NUM_KEYS = ['sunInt', 'hemiInt', 'exposure', 'fogNear', 'fogFar', 'lit', 'glow', 'stars', 'spec', 'sunGlow', 'disk'];
+  const NUM_KEYS = ['sunInt', 'hemiInt', 'exposure', 'fogNear', 'fogFar', 'lit', 'glow', 'stars', 'spec', 'sunGlow', 'disk', 'refl'];
   const toEnv = (p) => { const e = {}; for (const k of COLOR_KEYS) e[k] = C(p[k]); for (const k of NUM_KEYS) e[k] = p[k]; e.sunDir = p.sunDir.clone(); return e; };
   const ENVS = Object.fromEntries(Object.entries(PRESETS).map(([k, v]) => [k, toEnv(v)]));
   const env = toEnv(PRESETS[state.tod]);
@@ -1509,7 +1655,8 @@ function createEngine() {
     u.uSunDir.value.copy(env.sunDir); u.uSunCol.value.copy(env.sunColor); u.uSunGlow.value = env.sunGlow; u.uDisk.value = env.disk;
     scene.fog.color.copy(env.fog); scene.fog.near = env.fogNear; scene.fog.far = env.fogFar;
     sun.color.copy(env.sunColor); sun.intensity = env.sunInt; sun.position.copy(env.sunDir).multiplyScalar(300);
-    hemi.color.copy(env.hemiSky); hemi.groundColor.copy(env.hemiGround); hemi.intensity = env.hemiInt;
+    hemi.color.copy(env.hemiSky); hemi.groundColor.copy(env.hemiGround); hemi.intensity = env.hemiInt * 0.6;
+    waterMat.uniforms.uReflK.value = env.refl;
     renderer.toneMappingExposure = env.exposure;
     SH.uLit.value = env.lit; SH.uGlass.value.copy(env.glass);
     const w = waterMat.uniforms;
@@ -1521,9 +1668,17 @@ function createEngine() {
   function setTime(mode) {
     envFrom = { ...env, sunDir: env.sunDir.clone() }; for (const k of COLOR_KEYS) envFrom[k] = env[k].clone();
     envTo = ENVS[mode]; envT = state.reduced ? 1 : 0;
-    if (envT === 1) { mixEnv(envFrom, envTo, 1); applyEnv(); }
+    if (envT === 1) { mixEnv(envFrom, envTo, 1); applyEnv(); updateEnvMap(); }
   }
+  // Image-based light: the current sky, prefiltered, so glass and metal pick up real reflections
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envScene = new THREE.Scene();
+  const envSky = new THREE.Mesh(track(new THREE.SphereGeometry(50, 32, 16)), skyMat); envSky.frustumCulled = false; envScene.add(envSky);
+  let envRT = null, envFrames = 0;
+  function updateEnvMap() { const rt = pmrem.fromScene(envScene, 0.02, 0.1, 200); if (envRT) envRT.dispose(); envRT = rt; scene.environment = rt.texture; }
   applyEnv();
+  updateEnvMap();
+  scene.traverse((o) => { const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : []; for (const m of ms) if (m.isMeshStandardMaterial) m.envMapIntensity = m.metalness >= 0.2 ? 1.0 : 0.5; });
 
   /* ---------------- Camera views ---------------- */
   const DEFAULT = { t: [10, 0, 32], az: -136, el: 35, d: 222 };
@@ -1616,6 +1771,7 @@ function createEngine() {
   function resize() {
     const r = ui.app.getBoundingClientRect(); W = Math.max(1, r.width); H = Math.max(1, r.height);
     renderer.setSize(W, H, false); camera.aspect = W / H; camera.updateProjectionMatrix();
+    const pr = renderer.getPixelRatio(); mirror.rt.setSize(Math.max(4, Math.round(W * pr * mirror.scale)), Math.max(4, Math.round(H * pr * mirror.scale)));
     for (const l of Object.values(labelEls)) { l.w = l.el.offsetWidth; l.h = l.el.offsetHeight; }
     applyShift(true);
   }
@@ -1672,7 +1828,7 @@ function createEngine() {
     const amb = state.reduced ? 0 : 1;
     time += dt;
 
-    if (envT < 1) { envT = Math.min(1, envT + dt / 1.4); mixEnv(envFrom, envTo, ease(envT)); applyEnv(); }
+    if (envT < 1) { envT = Math.min(1, envT + dt / 1.4); mixEnv(envFrom, envTo, ease(envT)); applyEnv(); if (++envFrames % 6 === 0 || envT === 1) updateEnvMap(); }
 
     stepTween(dt);
     if (!tween) { controls.update(dt); }
@@ -1696,8 +1852,11 @@ function createEngine() {
     { const a = boats.lights.geometry.attributes.position; boats.forEach((b, i) => a.setXYZ(i, b.g.position.x, 1.2, b.g.position.z)); a.needsUpdate = true; }
     {
       const a = spout.points.geometry.attributes.position, sp = state.reduced ? 0.35 : 1;
-      spout.data.forEach((d, i) => { const s = ((time * 0.55 * sp + d.ph) % 1) * 1.42; a.setXYZ(i, 1.45 + 5.0 * s * d.v, 2.6 + 1.5 * s - 3.0 * s * s, d.z * s); });
+      spout.data.forEach((d, i) => { const s = ((time * 0.55 * sp + d.ph) % 1) * 1.5; a.setXYZ(i, 1.4 + 4.2 * s * d.v, 3.45 + 1.0 * s - 2.6 * s * s, d.z * s); });
       a.needsUpdate = true;
+      const b = spout.splash.geometry.attributes.position;
+      spout.sdata.forEach((d, i) => { const q = (time * 1.1 * sp + d.ph) % 1; b.setXYZ(i, 7.6 + Math.cos(d.a) * 0.55 * q, -0.92 + Math.sin(Math.PI * q) * d.h, Math.sin(d.a) * 0.55 * q); });
+      b.needsUpdate = true;
     }
     if (env.glow > 0.01) {
       const g = supertrees.glow;
@@ -1731,6 +1890,8 @@ function createEngine() {
 
     applyShift(false, dt);
     sky.position.copy(camera.position);
+    camera.updateMatrixWorld();
+    renderMirror();
     renderer.render(scene, camera);
     updateLabels();
 
@@ -1759,6 +1920,7 @@ function createEngine() {
     abort.abort(); ro.disconnect(); controls.dispose();
     scene.traverse((o) => { if (o.geometry) disposables.add(o.geometry); const m = o.material; if (m) (Array.isArray(m) ? m : [m]).forEach(x => disposables.add(x)); if (o.isInstancedMesh) o.dispose(); });
     for (const d of disposables) d.dispose && d.dispose();
+    if (envRT) envRT.dispose(); pmrem.dispose();
     renderer.dispose();
     ui.labels.innerHTML = '';
   }
